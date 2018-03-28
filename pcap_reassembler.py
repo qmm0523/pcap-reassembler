@@ -195,6 +195,17 @@ class PcapReassembler:
         src_socket  = (src_addr, src_port)
         dst_socket  = (dst_addr, dst_port)
         sockets     = (src_socket, dst_socket)
+        if self._strict_policy:
+            # Check the other stream in the connection
+            sockets = sockets[::-1]
+            if (sockets in self._tcp_stream and ack == self._tcp_stream[sockets].seq +
+                    len(self._tcp_stream[sockets].payload)):
+                self._tcp_flush(sockets)
+                del self._tcp_stream[sockets]
+        else:
+            if sockets in self._tcp_stream and ack != self._tcp_stream[sockets].ack:
+                self._tcp_flush(sockets)
+                del self._tcp_stream[sockets]
         if pld:
             if not sockets in self._tcp_stream:
                 self._tcp_stream[sockets] = Message({
@@ -217,17 +228,6 @@ class PcapReassembler:
             if offset > len(msg.payload):
                 msg.payload.extend(FILL_BYTE * (offset - len(msg.payload)))
             msg.payload[offset:offset+len(pld)] = list(pld)
-        if self._strict_policy:
-            # Check the other stream in the connection
-            sockets = sockets[::-1]
-            if (sockets in self._tcp_stream and ack == self._tcp_stream[sockets].seq +
-                    len(self._tcp_stream[sockets].payload)):
-                self._tcp_flush(sockets)
-                del self._tcp_stream[sockets]
-        else:
-            if sockets in self._tcp_stream and ack != self._tcp_stream[sockets].ack:
-                self._tcp_flush(sockets)
-                del self._tcp_stream[sockets]
 
     def _tcp_flush(self, sockets):
         """Flushes the specified TCP connection buffer.
